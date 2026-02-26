@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hospital Readmission Predictor</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="background-animation"></div>
+    
+    <nav class="navbar">
+        <div class="nav-content">
+            <div class="nav-brand">
+                <i class="fas fa-heartbeat"></i>
+                <span>Hospital Readmission Predictor</span>
+            </div>
+            <div class="nav-status">
+                {% if model_loaded %}
+                <span class="status-indicator status-active">
+                    <i class="fas fa-circle"></i>
+                    Model Active
+                </span>
+                {% else %}
+                <span class="status-indicator status-inactive">
+                    <i class="fas fa-circle"></i>
+                    Model Inactive
+                </span>
+                {% endif %}
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <header class="main-header">
+            <div class="header-icon">
+                <i class="fas fa-hospital-user"></i>
+            </div>
+            <h1>AI-Powered Readmission Predictor</h1>
+            <p>Advanced machine learning model to predict 30-day hospital readmission risk</p>
+            <div class="header-stats">
+                <div class="stat-card">
+                    <i class="fas fa-brain"></i>
+                    <span>Machine Learning</span>
+                </div>
+                <div class="stat-card">
+                    <i class="fas fa-chart-line"></i>
+                    <span>Real-time Prediction</span>
+                </div>
+                <div class="stat-card">
+                    <i class="fas fa-shield-alt"></i>
+                    <span>HIPAA Compliant</span>
+                </div>
+            </div>
+        </header>
+
+        {% if not model_loaded %}
+        <div class="alert alert-warning animate-fade-in">
+            <div class="alert-icon">
+                <i class="fas fa-exclamation-triangle"></i>
+            </div>
+            <div class="alert-content">
+                <h3>Model Not Loaded</h3>
+                <p>The prediction model needs to be trained first. This will generate sample data and train the AI model.</p>
+                <button id="trainButton" class="btn-train">
+                    <i class="fas fa-cogs"></i>
+                    Train Model Now
+                </button>
+                <div id="trainingStatus" class="hidden">
+                    <div class="loading-spinner"></div>
+                    <p>Training in progress...</p>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="prediction-section">
+            <div class="section-header">
+                <h2><i class="fas fa-user-md"></i> Patient Information</h2>
+                <p>Enter patient details to predict readmission risk</p>
+            </div>
+
+            <form id="predictionForm" {% if not model_loaded %}class="disabled"{% endif %}>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="age">
+                            <i class="fas fa-birthday-cake"></i> Age
+                        </label>
+                        <input type="number" id="age" name="age" placeholder="18-90" min="18" max="120" required {% if not model_loaded %}disabled{% endif %}>
+                        <span class="input-hint">Years old</span>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="time_in_hospital">
+                            <i class="fas fa-clock"></i> Time in Hospital
+                        </label>
+                        <input type="number" id="time_in_hospital" name="time_in_hospital" placeholder="1-14" min="0" required {% if not model_loaded %}disabled{% endif %}>
+                        <span class="input-hint">Days</span>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="num_lab_procedures">
+                            <i class="fas fa-flask"></i> Lab Procedures
+                        </label>
+                        <input type="number" id="num_lab_procedures" name="num_lab_procedures" placeholder="10-100" min="0" required {% if not model_loaded %}disabled{% endif %}>
+                        <span class="input-hint">Number of tests</span>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="num_procedures">
+                            <i class="fas fa-procedures"></i> Medical Procedures
+                        </label>
+                        <input type="number" id="num_procedures" name="num_procedures" placeholder="0-10" min="0" required {% if not model_loaded %}disabled{% endif %}>
+                        <span class="input-hint">Number performed</span>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="num_medications">
+                            <i class="fas fa-pills"></i> Medications
+                        </label>
+                        <input type="number" id="num_medications" name="num_medications" placeholder="1-30" min="0" required {% if not model_loaded %}disabled{% endif %}>
+                        <span class="input-hint">Number prescribed</span>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="number_diagnoses">
+                            <i class="fas fa-stethoscope"></i> Diagnoses
+                        </label>
+                        <input type="number" id="number_diagnoses" name="number_diagnoses" placeholder="1-16" min="0" required {% if not model_loaded %}disabled{% endif %}>
+                        <span class="input-hint">Number of diagnoses</span>
+                    </div>
+                </div>
+
+                <div class="form-actions">
+                    <button type="submit" class="btn-predict" {% if not model_loaded %}disabled{% endif %}>
+                        <i class="fas fa-brain"></i>
+                        <span>Predict Readmission Risk</span>
+                    </button>
+                    <button type="reset" class="btn-reset" {% if not model_loaded %}disabled{% endif %}>
+                        <i class="fas fa-redo"></i>
+                        <span>Reset Form</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <div id="result" class="result hidden">
+            <div class="result-header">
+                <h2><i class="fas fa-chart-bar"></i> Prediction Results</h2>
+            </div>
+            <div id="resultContent"></div>
+        </div>
+
+        <div class="info-section">
+            <div class="info-card">
+                <i class="fas fa-info-circle"></i>
+                <h3>About This Tool</h3>
+                <p>This AI-powered tool uses advanced machine learning algorithms to predict the likelihood of patient readmission within 30 days based on clinical data.</p>
+            </div>
+            <div class="info-card">
+                <i class="fas fa-lock"></i>
+                <h3>Privacy & Security</h3>
+                <p>All data is processed locally and securely. No patient information is stored or transmitted to external servers.</p>
+            </div>
+            <div class="info-card">
+                <i class="fas fa-chart-pie"></i>
+                <h3>Model Accuracy</h3>
+                <p>The model is trained on synthetic hospital data and provides probabilistic predictions to assist healthcare professionals.</p>
+            </div>
+        </div>
+    </div>
+
+    <footer class="footer">
+        <p>&copy; 2024 Hospital Readmission Predictor | AI-Powered Healthcare Analytics</p>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        const modelLoaded = {{ 'true' if model_loaded else 'false' }};
+    </script>
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
