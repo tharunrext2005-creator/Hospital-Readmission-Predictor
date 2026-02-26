@@ -1,0 +1,1 @@
+# This file is a binary file containing the serialized XGBoost model for hospital readmissions. It is intentionally left blank.
