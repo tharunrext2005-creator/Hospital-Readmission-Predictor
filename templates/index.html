@@ -145,6 +145,61 @@
             </form>
         </div>
 
+        <div class="prediction-section">
+            <div class="section-header">
+                <h2><i class="fas fa-file-medical"></i> Prescription Upload</h2>
+                <p>Upload prescription file and optionally provide patient values for better prediction</p>
+            </div>
+
+            <form id="prescriptionForm" enctype="multipart/form-data" {% if not model_loaded %}class="disabled"{% endif %}>
+                <div class="upload-group">
+                    <label for="prescription_file">
+                        <i class="fas fa-upload"></i> Prescription File (.txt, .csv, .pdf)
+                    </label>
+                    <input type="file" id="prescription_file" name="prescription_file" accept=".txt,.csv,.pdf" required {% if not model_loaded %}disabled{% endif %}>
+                    <span class="input-hint">The system extracts medication and clinical indicators from this file.</span>
+                </div>
+
+                <div class="form-grid optional-grid">
+                    <div class="form-group">
+                        <label for="upload_age"><i class="fas fa-birthday-cake"></i> Age (optional)</label>
+                        <input type="number" id="upload_age" name="age" min="18" max="120" placeholder="If known" {% if not model_loaded %}disabled{% endif %}>
+                    </div>
+                    <div class="form-group">
+                        <label for="upload_time_in_hospital"><i class="fas fa-clock"></i> Time in Hospital (optional)</label>
+                        <input type="number" id="upload_time_in_hospital" name="time_in_hospital" min="0" placeholder="Days" {% if not model_loaded %}disabled{% endif %}>
+                    </div>
+                    <div class="form-group">
+                        <label for="upload_num_lab_procedures"><i class="fas fa-flask"></i> Lab Procedures (optional)</label>
+                        <input type="number" id="upload_num_lab_procedures" name="num_lab_procedures" min="0" placeholder="Override extracted value" {% if not model_loaded %}disabled{% endif %}>
+                    </div>
+                    <div class="form-group">
+                        <label for="upload_num_procedures"><i class="fas fa-procedures"></i> Medical Procedures (optional)</label>
+                        <input type="number" id="upload_num_procedures" name="num_procedures" min="0" placeholder="Override extracted value" {% if not model_loaded %}disabled{% endif %}>
+                    </div>
+                    <div class="form-group">
+                        <label for="upload_num_medications"><i class="fas fa-pills"></i> Medications (optional)</label>
+                        <input type="number" id="upload_num_medications" name="num_medications" min="0" placeholder="Override extracted value" {% if not model_loaded %}disabled{% endif %}>
+                    </div>
+                    <div class="form-group">
+                        <label for="upload_number_diagnoses"><i class="fas fa-stethoscope"></i> Diagnoses (optional)</label>
+                        <input type="number" id="upload_number_diagnoses" name="number_diagnoses" min="0" placeholder="Override extracted value" {% if not model_loaded %}disabled{% endif %}>
+                    </div>
+                </div>
+
+                <div class="form-actions">
+                    <button type="submit" class="btn-predict" {% if not model_loaded %}disabled{% endif %}>
+                        <i class="fas fa-file-upload"></i>
+                        <span>Predict From Prescription</span>
+                    </button>
+                    <button type="reset" class="btn-reset" {% if not model_loaded %}disabled{% endif %}>
+                        <i class="fas fa-redo"></i>
+                        <span>Reset Upload Form</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+
         <div id="result" class="result hidden">
             <div class="result-header">
                 <h2><i class="fas fa-chart-bar"></i> Prediction Results</h2>

@@ -44,6 +44,43 @@ document.getElementById('predictionForm').addEventListener('submit', async (e) =
     }
 });
 
+document.getElementById('prescriptionForm')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    if (!modelLoaded) {
+        alert('Please train the model first!');
+        return;
+    }
+
+    const submitBtn = e.target.querySelector('.btn-predict');
+    const originalText = submitBtn.innerHTML;
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span>Analyzing Prescription...</span>';
+    submitBtn.disabled = true;
+
+    const formData = new FormData(e.target);
+
+    try {
+        const response = await fetch('/predict-prescription', {
+            method: 'POST',
+            body: formData
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+            displayResult(result);
+            showNotification('Prescription prediction completed successfully!', 'success');
+        } else {
+            showNotification('Error: ' + result.error, 'error');
+        }
+    } catch (error) {
+        showNotification('Error processing prescription: ' + error.message, 'error');
+    } finally {
+        submitBtn.innerHTML = originalText;
+        submitBtn.disabled = false;
+    }
+});
+
 let predictionChart = null;
 
 // Train model button
@@ -77,13 +114,14 @@ if (trainButton) {
     });
 }
 
-// Reset button
-document.querySelector('.btn-reset')?.addEventListener('click', () => {
-    document.getElementById('result').classList.add('hidden');
-    if (predictionChart) {
-        predictionChart.destroy();
-        predictionChart = null;
-    }
+document.querySelectorAll('.btn-reset').forEach((button) => {
+    button.addEventListener('click', () => {
+        document.getElementById('result').classList.add('hidden');
+        if (predictionChart) {
+            predictionChart.destroy();
+            predictionChart = null;
+        }
+    });
 });
 
 function displayResult(result) {
@@ -155,6 +193,29 @@ function displayResult(result) {
             </div>
         `;
     }
+
+    let uploadDetailsHTML = '';
+    if (result.source === 'prescription_upload') {
+        const features = result.extracted_features || {};
+        const meds = (result.detected_medications || []).length > 0
+            ? result.detected_medications.join(', ')
+            : 'No known medication names detected';
+
+        uploadDetailsHTML = `
+            <div class="analysis-section upload-summary-section">
+                <h3><i class="fas fa-file-medical"></i> Prescription Extraction Summary</h3>
+                <div class="upload-summary-grid">
+                    <div><strong>Age:</strong> ${Number(features.age ?? 0).toFixed(0)}</div>
+                    <div><strong>Hospital Stay:</strong> ${Number(features.time_in_hospital ?? 0).toFixed(0)} days</div>
+                    <div><strong>Lab Procedures:</strong> ${Number(features.num_lab_procedures ?? 0).toFixed(0)}</div>
+                    <div><strong>Medical Procedures:</strong> ${Number(features.num_procedures ?? 0).toFixed(0)}</div>
+                    <div><strong>Medications:</strong> ${Number(features.num_medications ?? 0).toFixed(0)}</div>
+                    <div><strong>Diagnoses:</strong> ${Number(features.number_diagnoses ?? 0).toFixed(0)}</div>
+                </div>
+                <p class="upload-med-list"><strong>Detected medications:</strong> ${meds}</p>
+            </div>
+        `;
+    }
     
     resultContent.innerHTML = `
         <div class="prediction-box">
@@ -199,6 +260,7 @@ function displayResult(result) {
                 <canvas id="predictionChart"></canvas>
             </div>
             
+            ${uploadDetailsHTML}
             ${riskSummaryHTML}
             ${riskFactorsHTML}
             ${recommendationsHTML}

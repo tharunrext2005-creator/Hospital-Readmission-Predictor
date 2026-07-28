@@ -4,6 +4,8 @@ import joblib
 import os
 import subprocess
 import sys
+import re
+import io
 
 app = Flask(__name__)
 
@@ -15,6 +17,8 @@ FEATURES_PATH = 'models/feature_names.pkl'
 model = None
 scaler = None
 feature_names = None
+
+ALLOWED_PRESCRIPTION_EXTENSIONS = {'.txt', '.csv', '.pdf'}
 
 def load_model():
     global model, scaler, feature_names
@@ -205,6 +209,125 @@ def get_readmission_analysis(input_data, prediction, probability):
     
     return analysis
 
+def run_model_inference(input_data):
+    input_df = pd.DataFrame([input_data])
+    input_scaled = scaler.transform(input_df)
+    prediction = model.predict(input_scaled)[0]
+    probability = model.predict_proba(input_scaled)[0]
+    analysis = get_readmission_analysis(input_data, prediction, probability)
+    return prediction, probability, analysis
+
+def to_float_or_none(value):
+    if value is None:
+        return None
+    value = str(value).strip()
+    if value == '':
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+def read_prescription_text(file_storage):
+    file_ext = os.path.splitext(file_storage.filename or '')[1].lower()
+    if file_ext not in ALLOWED_PRESCRIPTION_EXTENSIONS:
+        raise ValueError('Unsupported file type. Please upload .txt, .csv, or .pdf files.')
+
+    raw_content = file_storage.read()
+    if not raw_content:
+        raise ValueError('Uploaded file is empty.')
+
+    if file_ext in {'.txt', '.csv'}:
+        return raw_content.decode('utf-8', errors='ignore')
+
+    try:
+        from pypdf import PdfReader
+    except Exception as exc:
+        raise ValueError('PDF support is unavailable. Please install pypdf.') from exc
+
+    pdf_reader = PdfReader(io.BytesIO(raw_content))
+    pages = [page.extract_text() or '' for page in pdf_reader.pages]
+    return '\n'.join(pages)
+
+def extract_features_from_prescription_text(prescription_text, form_values):
+    text = prescription_text.lower()
+
+    default_features = {
+        'age': 55.0,
+        'time_in_hospital': 4.0,
+        'num_lab_procedures': 35.0,
+        'num_procedures': 1.0,
+        'num_medications': 8.0,
+        'number_diagnoses': 4.0
+    }
+
+    med_name_pattern = re.compile(
+        r'\b(metformin|insulin|lisinopril|atorvastatin|amlodipine|aspirin|furosemide|'
+        r'clopidogrel|warfarin|losartan|glipizide|metoprolol)\b'
+    )
+    dosage_pattern = re.compile(r'\b\d+\s*(mg|mcg|ml|units?)\b')
+
+    matched_meds = set(med_name_pattern.findall(text))
+    dosage_mentions = len(dosage_pattern.findall(text))
+    explicit_med_count = re.search(r'(medications?|drugs?)\s*[:\-]\s*(\d+)', text)
+
+    num_medications = default_features['num_medications']
+    if explicit_med_count:
+        num_medications = float(explicit_med_count.group(2))
+    elif matched_meds:
+        num_medications = float(max(len(matched_meds), dosage_mentions))
+    elif dosage_mentions:
+        num_medications = float(dosage_mentions)
+
+    lab_keywords = [
+        'lab', 'labs', 'cbc', 'hba1c', 'creatinine', 'electrolyte', 'glucose', 'panel', 'blood test'
+    ]
+    procedure_keywords = [
+        'procedure', 'procedures', 'surgery', 'operation', 'biopsy', 'dialysis', 'catheter', 'angioplasty'
+    ]
+    diagnosis_keywords = [
+        'diagnosis', 'diagnoses', 'diabetes', 'hypertension', 'copd', 'asthma',
+        'heart failure', 'ckd', 'infection', 'pneumonia', 'sepsis'
+    ]
+
+    num_lab_procedures = float(max(sum(text.count(keyword) for keyword in lab_keywords) * 4, 0))
+    num_procedures = float(max(sum(text.count(keyword) for keyword in procedure_keywords), 0))
+    number_diagnoses = float(max(sum(text.count(keyword) for keyword in diagnosis_keywords), 0))
+
+    age_match = re.search(r'\b(age|aged)\s*[:\-]?\s*(\d{1,3})\b', text)
+    stay_match = re.search(r'\b(length of stay|hospital stay|los|days?)\s*[:\-]?\s*(\d{1,2})\b', text)
+
+    age = float(age_match.group(2)) if age_match else default_features['age']
+    time_in_hospital = float(stay_match.group(2)) if stay_match else default_features['time_in_hospital']
+
+    overrides = {
+        'age': to_float_or_none(form_values.get('age')),
+        'time_in_hospital': to_float_or_none(form_values.get('time_in_hospital')),
+        'num_lab_procedures': to_float_or_none(form_values.get('num_lab_procedures')),
+        'num_procedures': to_float_or_none(form_values.get('num_procedures')),
+        'num_medications': to_float_or_none(form_values.get('num_medications')),
+        'number_diagnoses': to_float_or_none(form_values.get('number_diagnoses'))
+    }
+
+    extracted = {
+        'age': max(18.0, min(age, 120.0)),
+        'time_in_hospital': max(0.0, min(time_in_hospital, 30.0)),
+        'num_lab_procedures': max(0.0, min(num_lab_procedures or default_features['num_lab_procedures'], 120.0)),
+        'num_procedures': max(0.0, min(num_procedures or default_features['num_procedures'], 15.0)),
+        'num_medications': max(0.0, min(num_medications or default_features['num_medications'], 40.0)),
+        'number_diagnoses': max(0.0, min(number_diagnoses or default_features['number_diagnoses'], 20.0))
+    }
+
+    for key, value in overrides.items():
+        if value is not None:
+            extracted[key] = value
+
+    input_data = {}
+    for feature in feature_names:
+        input_data[feature] = extracted.get(feature, 0)
+
+    return input_data, extracted, sorted(matched_meds)
+
 @app.route('/predict', methods=['POST'])
 def predict():
     if model is None or scaler is None:
@@ -220,17 +343,7 @@ def predict():
         for feature in feature_names:
             input_data[feature] = data.get(feature, 0)
         
-        input_df = pd.DataFrame([input_data])
-        
-        # Scale the input
-        input_scaled = scaler.transform(input_df)
-        
-        # Make prediction
-        prediction = model.predict(input_scaled)[0]
-        probability = model.predict_proba(input_scaled)[0]
-        
-        # Get detailed analysis
-        analysis = get_readmission_analysis(input_data, prediction, probability)
+        prediction, probability, analysis = run_model_inference(input_data)
         
         result = {
             'prediction': int(prediction),
@@ -242,6 +355,44 @@ def predict():
         
         return jsonify(result)
     
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+
+@app.route('/predict-prescription', methods=['POST'])
+def predict_prescription():
+    if model is None or scaler is None:
+        return jsonify({'error': 'Model not loaded. Please train the model first.'}), 500
+
+    try:
+        uploaded_file = request.files.get('prescription_file')
+        if uploaded_file is None or not uploaded_file.filename:
+            return jsonify({'error': 'Please upload a prescription file first.'}), 400
+
+        prescription_text = read_prescription_text(uploaded_file)
+        if not prescription_text.strip():
+            return jsonify({'error': 'Could not read any prescription text from the uploaded file.'}), 400
+
+        input_data, extracted_features, detected_medications = extract_features_from_prescription_text(
+            prescription_text,
+            request.form
+        )
+
+        prediction, probability, analysis = run_model_inference(input_data)
+
+        result = {
+            'prediction': int(prediction),
+            'readmission': 'Yes' if prediction == 1 else 'No',
+            'probability_no': float(probability[0]),
+            'probability_yes': float(probability[1]),
+            'analysis': analysis,
+            'source': 'prescription_upload',
+            'extracted_features': extracted_features,
+            'detected_medications': detected_medications,
+            'text_preview': prescription_text[:300]
+        }
+
+        return jsonify(result)
+
     except Exception as e:
         return jsonify({'error': str(e)}), 400
 

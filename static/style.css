@@ -338,6 +338,37 @@ body {
     box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
 }
 
+.upload-group {
+    margin-bottom: 1.5rem;
+    display: flex;
+    flex-direction: column;
+}
+
+.upload-group label {
+    font-weight: 600;
+    color: var(--dark);
+    margin-bottom: 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.upload-group label i {
+    color: var(--primary);
+}
+
+.upload-group input[type="file"] {
+    padding: 12px;
+    border: 2px dashed #cbd5e1;
+    border-radius: 10px;
+    background: #f8fafc;
+    font-family: 'Inter', sans-serif;
+}
+
+.optional-grid {
+    margin-top: 1rem;
+}
+
 .input-hint {
     font-size: 0.85rem;
     color: #94a3b8;
@@ -721,6 +752,29 @@ body {
     font-weight: 500;
     line-height: 1.6;
     margin: 0;
+}
+
+.upload-summary-section {
+    border-left-color: var(--secondary);
+}
+
+.upload-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 0.8rem;
+    margin-bottom: 1rem;
+}
+
+.upload-summary-grid div {
+    background: rgba(99, 102, 241, 0.06);
+    border-radius: 8px;
+    padding: 0.8rem;
+    color: var(--dark);
+}
+
+.upload-med-list {
+    color: #334155;
+    line-height: 1.5;
 }
 
 /* Info Section */
